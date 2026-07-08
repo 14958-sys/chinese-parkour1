@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Chinese-Parkour: Lava Escape (Mobile Responsive Update)</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            text-align: center;
+            background-color: #111;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            overflow: hidden;
+            touch-action: none;
+        }
+        #game-ui {
+            color: #fff;
+            position: absolute;
+            top: 10px;
+            width: 100%;
+            z-index: 100;
+            font-size: 16px;
+            pointer-events: none;
+        }
+        #score-board { font-weight: bold; font-size: 20px; color: #ffeb3b; text-shadow: 0 2px 4px rgba(0,0,0,0.8); }
+        
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(to top, #1a0f0f, #111122);
+            overflow: hidden;
+        }
+        
+        #game-world {
+            position: absolute;
+            width: 100%;
+            height: 100000px;
+            bottom: 0;
+            left: 0;
+        }
+
+        /* รูปแบบแท่นกระโดดต่างๆ */
+        .platform {
+            position: absolute;
+            height: 16px;
+            background: linear-gradient(to bottom, #4e342e, #3e2723);
+            border-top: 3px solid #8d6e63;
+            border-radius: 4px;
+            z-index: 10;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+        .platform.trap { border-top: 3px solid #ff5252; }
+        .platform.start-floor { background: #5d4037; border-top: 4px solid #a1887f; }
+        
+        /* แท่นเหยียบครั้งเดียวหาย (ส้มระเบิด) */
+        .platform.disappear {
+            background: linear-gradient(to bottom, #ff6d00, #dd2c00);
+            border-top: 3px solid #ffab40;
+            box-shadow: 0 0 8px rgba(255,109,0,0.6);
+        }
+        .platform.shaking {
+            animation: shake 0.1s infinite;
+        }
+        @keyframes shake {
+            0% { transform: translateX(-2px); }
+            100% { transform: translateX(2px); }
+        }
+
+        /* ไอเทมบูสสายฟ้า */
+        .boost-item {
+            position: absolute;
+            width: 20px;
+            height: 25px;
+            background-color: #ffeb3b;
+            clip-path: polygon(40% 0%, 100% 0%, 30% 50%, 70% 50%, 0% 100%, 50% 40%, 20% 40%);
+            box-shadow: 0 0 10px #ffeb3b;
+            z-index: 15;
+            animation: pulse 0.5s infinite alternate;
+        }
+        @keyframes pulse { from { transform: scale(1); } to { transform: scale(1.2); } }
+
+        /* ตัวละคร */
+        #player {
+            position: absolute;
+            width: 28px;
+            height: 28px;
+            background-color: #ff4081;
+            border-radius: 6px;
+            z-index: 50; 
+            box-shadow: 0 0 15px #ff4081;
+        }
+        
+        /* ลาวา */
+        #lava {
+            position: absolute;
+            width: 100%;
+            height: 800px; 
+            background: #ff2200; 
+            border-top: 8px solid #ffea00; 
+            z-index: 40; 
+            box-shadow: 0 -15px 30px rgba(255, 34, 0, 0.8);
+        }
+
+        /* ปุ่มควบคุมมือถือ ปรับตำแหน่งให้กะทัดรัดไม่บังจอ */
+        #mobile-controls {
+            display: none;
+            position: absolute;
+            bottom: 25px;
+            width: 100%;
+            height: 130px;
+            z-index: 80;
+            pointer-events: none;
+        }
+        #joystick-zone {
+            position: absolute;
+            left: 25px;
+            bottom: 15px;
+            width: 90px;
+            height: 90px;
+            background: rgba(255,255,255,0.12);
+            border: 2px solid rgba(255,255,255,0.35);
+            border-radius: 50%;
+            pointer-events: auto;
+        }
+        #joystick-knob {
+            position: absolute;
+            width: 36px;
+            height: 36px;
+            background: #ff9100;
+            border-radius: 50%;
+            left: 27px;
+            top: 27px;
+        }
+        #jump-btn {
+            position: absolute;
+            right: 25px;
+            bottom: 15px;
+            width: 85px;
+            height: 85px;
+            background: rgba(255, 64, 129, 0.55);
+            border: 3px solid #ff4081;
+            border-radius: 50%;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+
+        /* กล่องคำถาม */
+        #quiz-box {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #222;
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            border: 3px solid #ff9100;
+            width: 88%;
+            max-width: 400px;
+            box-shadow: 0 0 30px rgba(255,145,0,0.5);
+            z-index: 200;
+        }
+        #timer-bar { width: 100%; background: #444; height: 10px; border-radius: 6px; overflow: hidden; margin-bottom: 12px; }
+        #timer-fill { width: 100%; height: 100%; background: #ff3d00; transition: width 1s linear; }
+        .option-btn { padding: 12px; font-size: 16px; background: #333; color: white; border: 1px solid #ff9100; border-radius: 6px; margin: 6px auto; cursor: pointer; width: 95%; display: block; }
+        .option-btn:hover { background: #ff9100; }
+        #write-input { padding: 12px; font-size: 16px; width: 85%; border-radius: 6px; border: none; text-align: center; margin-bottom: 10px; background: #444; color: white; }
+        
+        /* สกรีนเริ่มเกม และ เฉลยตอนแพ้ */
+        #start-screen { position: absolute; top:0; left:0; width:100%; height:100%; background: rgba(15,15,25,0.95); z-index: 250; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; }
+        #start-btn { padding: 12px 35px; font-size: 20px; background: #ff3d00; border: none; color: white; border-radius: 30px; cursor: pointer; font-weight: bold; box-shadow: 0 0 15px #ff3d00; margin-top: 15px; }
+        #answer-reveal { margin: 15px 0; padding: 12px; background: rgba(255,255,255,0.1); border-radius: 8px; border-left: 5px solid #ffeb3b; width: 85%; max-width: 350px; display: none; text-align: left; }
+
+        /* ระบบ Toast แจ้งเตือนแบบไม่มี Alert ค้างหน้าจอ */
+        #game-toast {
+            position: absolute;
+            top: -100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(76, 175, 80, 0.95);
+            color: white;
+            padding: 10px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 30px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            z-index: 300;
+            transition: top 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div id="game-toast">🎉 ถูกต้อง! ลาวาสะตั้นหยุดนิ่ง 2 วินาที!</div>
+
+        <div id="game-ui">
+            <div id="score-board">ความสูง: 0 เมตร</div>
+            <div id="stage-board">คลังคำศัพท์ภาษาจีนแบบสุ่มไม่ซ้ำ</div>
+        </div>
+
+        <div id="start-screen">
+            <h1 id="menu-title" style="font-size: 24px; margin: 10px;">🌋 Chinese-Parkour: Lava Escape</h1>
+            <p id="menu-desc" style="padding: 0 20px; color: #ccc; font-size: 14px;">ระวัง! เล่นเกิน 60 วินาที คำถามยากระดับโปรจะสุ่มแทรกเข้ามา ⏳</p>
+            
+            <div id="answer-reveal">
+                <b style="color: #ffeb3b; font-size: 16px;">💡 เฉลยข้อที่ตอบผิดเมื่อครู่:</b><br>
+                <span id="reveal-q" style="font-size: 15px;"></span>
+                <p style="margin: 5px 0 0 0; color: #ff8a80; font-size: 12px;">* ระบบบันทึกแล้ว ข้อนี้จะกลับมาสุ่มให้ตอบใหม่รอบหน้า!</p>
+            </div>
+
+            <button id="start-btn" onclick="startGame()">เริ่มปีนหนีลาวา Go!</button>
+        </div>
+
+        <div id="game-world">
+            <div id="player"></div>
+            <div id="lava"></div>
+        </div>
+
+        <div id="mobile-controls">
+            <div id="joystick-zone"><div id="joystick-knob"></div></div>
+            <div id="jump-btn">JUMP</div>
+        </div>
+    </div>
+
+    <div id="quiz-box">
+        <div id="timer-bar"><div id="timer-fill"></div></div>
+        <div id="timer-text" style="color:#ff5252; font-weight:bold; margin-bottom:8px; font-size: 14px;">เวลาเหลือ: 60 วินาที</div>
+        <h2 id="question_title" style="font-size: 18px; margin-top: 5px;">ตอบคำถามเพื่อลดระดับลาวา!</h2>
+        <div id="options-zone"></div>
+        <div id="write-zone" style="display:none;">
+            <input type="text" id="write-input" placeholder="พิมพ์คำแปลภาษาไทยที่นี่..."><br>
+            <button class="option-btn" onclick="submitWriteAnswer()">ส่งคำตอบ (หรือกด Enter)</button>
+        </div>
+    </div>
+
+    <script>
+        const world = document.getElementById('game-world');
+        const player = document.getElementById('player');
+        const lava = document.getElementById('lava');
+        const scoreBoard = document.getElementById('score-board');
+        const quizBox = document.getElementById('quiz-box');
+        const startScreen = document.getElementById('start-screen');
+        const writeInput = document.getElementById('write-input');
+        const gameToast = document.getElementById('game-toast');
+        
+        let isPlaying = false;
+        let pX = window.innerWidth / 2, pY = 80; 
+        let pVx = 0, pVy = 0; 
+        
+        // 🛠️ ปรับฟิสิกส์ให้สอดคล้องกับระยะกว้างแนวตั้งของหน้าจอมือถือ
+        const gravity = 0.44; 
+        const jumpForce = 13.2; 
+        const speedLimit = 6.8;
+        
+        let lavaY = -780; 
+        let isLavaStunned = false; 
+        let lavaStunTimeout = null;
+
+        let cameraY = 0;
+        let maxHeightReached = 0;
+        let platforms = [];
+        let boostItems = [];
+        
+        // 🛠️ ขยายระยะเริ่มต้นชั้นให้กระโดดได้โปร่งขึ้น ไม่ชิดติดกัน
+        let nextPlatformHeight = 160; 
+        let layersCount = 0;
+
+        let gameStartTime = 0;
+        let reviewList = JSON.parse(localStorage.getItem('chinese_review_list')) || [];
+
+        const normalQuizData = [
+            { id: 'n1', type: 'choice', q: "คำว่า '狗' (Gǒu) แปลว่าอะไร?", a: ["หมา", "แมว", "หมู"], correct: "หมา" },
+            { id: 'n2', type: 'choice', q: "คำว่า '猫' (Māo) แปลว่าอะไร?", a: ["หมู", "แมว", "ปลา"], correct: "貓" },
+            { id: 'n3', type: 'choice', q: "คำว่า '猪' (Zhū) แปลว่าอะไร?", a: ["ควาย", "นก", "หมู"], correct: "หมู" },
+            { id: 'n4', type: 'choice', q: "คำว่า '水牛' (Shuǐniú) แปลว่าอะไร?", a: ["ควาย", "ช้าง", "ปลา"], correct: "ควาย" },
+            { id: 'n5', type: 'choice', q: "คำว่า '鱼' (Yú) แปลว่าอะไร?", a: ["ปลา", "หมา", "แมว"], correct: "ปลา" },
+            { id: 'n6', type: 'choice', q: "คำว่า '大象' (Dàxiàng) แปลว่าอะไร?", a: ["หมู", "ช้าง", "ควาย"], correct: "ช้าง" },
+            { id: 'n7', type: 'choice', q: "คำว่า '米饭' (Mǐfàn) แปลว่าอะไร?", a: ["ข้าว", "ก๋วยเตี๋ยว", "ขนมปัง"], correct: "ข้าว" },
+            { id: 'n8', type: 'choice', q: "คำว่า '面包' (Miànbāo) แปลว่าอะไร?", a: ["ซาลาเปา", "ขนมปัง", "นม"], correct: "ขนมปัง" },
+            { id: 'n9', type: 'choice', q: "คำว่า '苹果' (Píngguǒ) แปลว่าอะไร?", a: ["ส้ม", "องุ่น", "แอปเปิ้ล"], correct: "แอปเปิ้ล" },
+            { id: 'n10', type: 'choice', q: "คำว่า '水' (Shuǐ) แปลว่าอะไร?", a: ["ชา", "น้ำ", "นม"], correct: "น้ำ" },
+            { id: 'n11', type: 'choice', q: "คำว่า '一' (Yī) คือตัวเลขอะไร?", a: ["1", "5", "10"], correct: "1" },
+            { id: 'n12', type: 'choice', q: "คำว่า '五' (Wǔ) คือตัวเลขอะไร?", a: ["2", "5", "8"], correct: "5" },
+            { id: 'n13', type: 'choice', q: "คำว่า '十' (Shí) คือตัวเลขอะไร?", a: ["3", "7", "10"], correct: "10" },
+            { id: 'n14', type: 'choice', q: "คำว่า '早上' (Zǎoshang) หมายถึงช่วงเวลาใด?", a: ["ตอนเช้า", "ตอนเที่ยง", "ตอนเย็น"], correct: "ตอนเช้า" },
+            { id: 'n15', type: 'choice', q: "คำว่า '晚上' (Wǎnshàng) หมายถึงช่วงเวลาใด?", a: ["ตอนสาย", "ตอนบ่าย", "ตอนกลางคืน"], correct: "ตอนกลางคืน" },
+            { id: 'n16', type: 'choice', q: "คำว่า '今天' (Jīntiān) แปลว่าอะไร?", a: ["เมื่อวาน", "วันนี้", "พรุ่งนี้"], correct: "วันนี้" }
+        ];
+
+        const hardQuizData = [
+            { id: 'h1', type: 'write', q: "คำศัพท์ระดับยาก: จงพิมพ์คำแปลของ '星期六' (Xīngqīliù)", correct: "วันเสาร์" },
+            { id: 'h2', type: 'write', q: "คำศัพท์ระดับยาก: จงพิมพ์คำแปลของ '冰激凌' (Bīngjīlíng)", correct: "ไอศกรีม" },
+            { id: 'h3', type: 'write', q: "คำศัพท์ระดับยาก: จงพิมพ์คำแปลของ '巧克力' (Qiǎokèlì)", correct: "ช็อกโกแลต" },
+            { id: 'h4', type: 'write', q: "คำศัพท์ระดับยาก: จงพิมพ์คำแปลของ '熊猫' (Xióngmāo)", correct: "แพนด้า" },
+            { id: 'h5', type: 'write', q: "คำศัพท์ระดับยาก: จงพิมพ์คำแปลของ '长颈鹿' (Chángjǐnglù)", correct: "ยีราฟ" },
+            { id: 'h6', type: 'write', q: "คำศัพท์ระดับยาก: จงพิมพ์คำแปลของ '现在几点' (Xiànzài jǐ diǎn)", correct: "ตอนนี้กี่โมง" }
+        ];
+
+        let currentRoundPool = [];
+        let currentQuiz = null;
+        let timerInterval, timeLeft = 60;
+
+        if ('touchstart' in window || navigator.maxTouchPoints > 0) {
+            document.getElementById('mobile-controls').style.display = "block";
+        }
+
+        let keys = {};
+        window.addEventListener('keydown', e => { 
+            keys[e.code] = true; 
+            if (e.code === 'Enter' && quizBox.style.display === "block" && currentQuiz && currentQuiz.type === 'write') {
+                submitWriteAnswer();
+            }
+        });
+        window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+        const joystickZone = document.getElementById('joystick-zone');
+        const joystickKnob = document.getElementById('joystick-knob');
+        let joystickActive = false, joyX = 0;
+
+        joystickZone.addEventListener('touchstart', e => { joystickActive = true; handleJoystick(e); });
+        window.addEventListener('touchmove', e => { if(joystickActive) handleJoystick(e); });
+        window.addEventListener('touchend', () => { joystickActive = false; joyX = 0; joystickKnob.style.left = "27px"; });
+
+        function handleJoystick(e) {
+            let touch = e.touches[0];
+            let rect = joystickZone.getBoundingClientRect();
+            joyX = Math.min(Math.max((touch.clientX - (rect.left + rect.width/2)), -30), 30) / 30;
+            joystickKnob.style.left = (27 + joyX * 30) + "px";
+        }
+
+        document.getElementById('jump-btn').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (isPlaying && pVy === 0) pVy = jumpForce;
+        });
+
+        function initQuestionPool() {
+            currentRoundPool = [...normalQuizData];
+        }
+
+        function startGame() {
+            startScreen.style.display = "none";
+            quizBox.style.display = "none";
+            
+            if(lavaStunTimeout) clearTimeout(lavaStunTimeout);
+            isLavaStunned = false;
+
+            platforms.forEach(p => p.element.remove());
+            boostItems.forEach(b => b.element.remove());
+            platforms = [];
+            boostItems = [];
+            
+            cameraY = 0; 
+            maxHeightReached = 0;
+            scoreBoard.innerText = `ความสูง: 0 เมตร`;
+            world.style.bottom = "0px"; 
+
+            pX = window.innerWidth / 2 - 14; 
+            pY = 80; 
+            pVx = 0; pVy = 0;
+            
+            // 🛠️ ปรับระยะห่างความสูงในการสร้างแท่นเลเวลถัดไปไม่ให้เบียดกัน
+            nextPlatformHeight = 160; 
+            layersCount = 0;
+            
+            lavaY = -780; 
+            lava.style.bottom = lavaY + "px";
+
+            gameStartTime = Date.now();
+            initQuestionPool();
+
+            createPlatform(0, window.innerWidth, 40, "normal", true); 
+
+            for(let i=0; i<12; i++) { generateNextPlatforms(); }
+
+            isPlaying = true;
+            requestAnimationFrame(gameLoop);
+        }
+
+        function createPlatform(x, width, y, type, isStartFloor = false) {
+            let el = document.createElement('div');
+            el.className = "platform " + type + (isStartFloor ? " start-floor" : "");
+            el.style.left = x + "px"; el.style.width = width + "px"; el.style.bottom = y + "px";
+            world.appendChild(el);
+            platforms.push({ element: el, x: x, width: width, y: y, type: type, isStartFloor: isStartFloor, triggered: false });
+        }
+
+        function createBoostItem(x, y) {
+            let el = document.createElement('div');
+            el.className = "boost-item";
+            el.style.left = x + "px"; el.style.bottom = y + "px";
+            world.appendChild(el);
+            boostItems.push({ element: el, x: x, y: y });
+        }
+
+        function generateNextPlatforms() {
+            layersCount++;
+            let numPlatforms = Math.floor(Math.random() * 2) + 2; // ลดปริมาณแท่นต่อชั้นลงเล็กน้อยเพื่อไม่ให้รกหน้าจอมือถือ
+            
+            let usableWidth = window.innerWidth * 0.84; 
+            let offsetX = window.innerWidth * 0.08;   
+            let sectionWidth = usableWidth / numPlatforms;
+            let placedBoost = false;
+            
+            for(let i=0; i<numPlatforms; i++) {
+                let pWidth = Math.floor(Math.random() * 20) + 90; 
+                let platformX = offsetX + (i * sectionWidth) + Math.random() * (sectionWidth - pWidth);
+                
+                if (platformX + pWidth > window.innerWidth) {
+                    platformX = window.innerWidth - pWidth - 10;
+                }
+                if (platformX < 0) platformX = 10;
+
+                let randType = Math.random();
+                let pType = "normal";
+                if (randType < 0.18) pType = "trap";
+                else if (randType >= 0.18 && randType < 0.40) pType = "disappear"; 
+
+                createPlatform(platformX, pWidth, nextPlatformHeight, pType);
+
+                if (pType === "normal" && !placedBoost && layersCount % (Math.floor(Math.random() * 2) + 3) === 0) {
+                    createBoostItem(platformX + (pWidth / 2) - 10, nextPlatformHeight + 25);
+                    placedBoost = true;
+                }
+            }
+            // 🛠️ ปรับระยะสุ่มความสูงแต่ละชั้นให้เหมาะสมกับสัดส่วนมือถือแนวตั้ง (100 - 130px)
+            nextPlatformHeight += Math.floor(Math.random() * 30) + 100; 
+        }
+
+        function gameLoop() {
+            if (!animationFrameUpdate()) return;
+            requestAnimationFrame(gameLoop);
+        }
+
+        function animationFrameUpdate() {
+            if (!isPlaying) return false;
+
+            if (keys['KeyA'] || keys['ArrowLeft']) pVx = -speedLimit;
+            else if (keys['KeyD'] || keys['ArrowRight']) pVx = speedLimit;
+            else if (joystickActive) pVx = joyX * speedLimit;
+            else pVx *= 0.78;
+
+            if ((keys['KeyW'] || keys['ArrowUp'] || keys['Space']) && pVy === 0) pVy = jumpForce;
+
+            pVy -= gravity; pY += pVy; pX += pVx;
+
+            if (pX < 0) pX = 0;
+            if (pX > window.innerWidth - 28) pX = window.innerWidth - 28;
+            if (pY < 0) pY = 0;
+
+            if (pVy <= 0) { 
+                for (let i = 0; i < platforms.length; i++) {
+                    let plat = platforms[i];
+                    if (pX + 24 >= plat.x && pX <= plat.x + plat.width && pY >= plat.y + 10 && pY <= plat.y + 24) {
+                        if (plat.type === "trap") {
+                            plat.element.remove(); platforms.splice(i, 1); i--;
+                            continue;
+                        }
+                        
+                        if (plat.type === "disappear" && !plat.triggered) {
+                            plat.triggered = true;
+                            plat.element.classList.add("shaking");
+                            setTimeout(() => {
+                                plat.element.style.opacity = "0";
+                                setTimeout(() => {
+                                    let idx = platforms.indexOf(plat);
+                                    if(idx > -1) { plat.element.remove(); platforms.splice(idx, 1); }
+                                }, 200);
+                            }, 500);
+                        }
+
+                        pY = plat.y + 16; pVy = 0; break;
+                    }
+                }
+            }
+
+            for (let i = 0; i < boostItems.length; i++) {
+                let item = boostItems[i];
+                if (pX + 28 >= item.x && pX <= item.x + 20 && pY + 28 >= item.y && pY <= item.y + 25) {
+                    pVy = 18.5; 
+                    item.element.remove(); boostItems.splice(i, 1); i--;
+                }
+            }
+
+            if (pY > cameraY + window.innerHeight * 0.45) {
+                cameraY = pY - window.innerHeight * 0.45;
+                world.style.bottom = -cameraY + "px";
+            }
+
+            if (Math.floor(pY/10) > maxHeightReached) {
+                maxHeightReached = Math.floor(pY/10);
+                scoreBoard.innerText = `ความสูง: ${maxHeightReached} เมตร`;
+            }
+
+            if (pY + window.innerHeight > nextPlatformHeight) generateNextPlatforms();
+
+            if (!isLavaStunned) {
+                let baseLavaSpeed = 0.24 + (maxHeightReached * 0.0035);
+                lavaY += baseLavaSpeed;
+            }
+
+            let maxAllowedLava = cameraY - 150; 
+            if (lavaY > maxAllowedLava) lavaY = maxAllowedLava; 
+            if (lavaY < cameraY - 780) lavaY = cameraY - 780; 
+
+            lava.style.bottom = lavaY + "px";
+            player.style.left = pX + "px"; 
+            player.style.bottom = pY + "px";
+
+            if (pY <= lavaY + 795) { 
+                isPlaying = false;
+                triggerQuiz();
+                return false;
+            }
+            return true;
+        }
+
+        function pickSmartQuestion() {
+            if (reviewList.length > 0) {
+                let picked = reviewList.shift(); 
+                localStorage.setItem('chinese_review_list', JSON.stringify(reviewList)); 
+                return picked;
+            }
+
+            let secondsElapsed = (Date.now() - gameStartTime) / 1000;
+
+            if (secondsElapsed > 60 && Math.random() < 0.40) {
+                return hardQuizData[Math.floor(Math.random() * hardQuizData.length)];
+            }
+
+            if (currentRoundPool.length === 0) {
+                initQuestionPool();
+            }
+            
+            let randomIndex = Math.floor(Math.random() * currentRoundPool.length);
+            let pickedQuestion = currentRoundPool[randomIndex];
+            
+            currentRoundPool.splice(randomIndex, 1);
+            return pickedQuestion;
+        }
+
+        function triggerQuiz() {
+            quizBox.style.display = "block";
+            timeLeft = 60;
+            document.getElementById('timer-text').innerText = `เวลาเหลือ: ${timeLeft} วินาที`;
+            document.getElementById('timer-fill').style.width = "100%";
+            writeInput.value = "";
+
+            currentQuiz = pickSmartQuestion();
+            document.getElementById('question_title').innerText = currentQuiz.q;
+
+            if (currentQuiz.type === 'choice') {
+                document.getElementById('options-zone').style.display = "block";
+                document.getElementById('write-zone').style.display = "none";
+                document.getElementById('options-zone').innerHTML = "";
+                currentQuiz.a.forEach(opt => {
+                    const btn = document.createElement('button');
+                    btn.className = "option-btn"; btn.innerText = opt;
+                    btn.onclick = () => checkAnswer(opt);
+                    document.getElementById('options-zone').appendChild(btn);
+                });
+            } else {
+                document.getElementById('options-zone').style.display = "none";
+                document.getElementById('write-zone').style.display = "block";
+                setTimeout(() => { writeInput.focus(); }, 50);
+            }
+
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                document.getElementById('timer-text').innerText = `เวลาเหลือ: ${timeLeft} วินาที`;
+                document.getElementById('timer-fill').style.width = (timeLeft / 60) * 100 + "%";
+                if (timeLeft <= 0) { clearInterval(timerInterval); gameOver(); }
+            }, 1000);
+        }
+
+        function checkAnswer(ans) {
+            clearInterval(timerInterval);
+            if(ans === currentQuiz.correct) revivePlayer();
+            else gameOver();
+        }
+
+        function submitWriteAnswer() {
+            clearInterval(timerInterval);
+            let ans = writeInput.value.trim();
+            if(ans === currentQuiz.correct) revivePlayer();
+            else gameOver();
+        }
+
+        function revivePlayer() {
+            quizBox.style.display = "none";
+            lavaY = cameraY - 700; 
+            lava.style.bottom = lavaY + "px";
+            pY = cameraY + 140; pVy = jumpForce * 1.02; pVx = 0;
+            
+            isLavaStunned = true;
+            if (lavaStunTimeout) clearTimeout(lavaStunTimeout);
+            lavaStunTimeout = setTimeout(() => { isLavaStunned = false; }, 2000);
+
+            isPlaying = true;
+            requestAnimationFrame(gameLoop);
+            
+            gameToast.style.top = "20px";
+            setTimeout(() => { gameToast.style.top = "-100px"; }, 2200);
+        }
+
+        function gameOver() {
+            clearInterval(timerInterval);
+            quizBox.style.display = "none";
+            
+            document.getElementById('menu-title').innerText = "💥 เกมโอเวอร์ (Game Over)";
+            document.getElementById('menu-desc').innerHTML = `คุณทำความสูงได้: <b style='color:#ffeb3b;'>${maxHeightReached} เมตร</b>`;
+            
+            let correctAns = currentQuiz.correct;
+            document.getElementById('reveal-q').innerHTML = `${currentQuiz.q}<br>👉 <b style='color:#4caf50;'>คำตอบที่ถูกต้องคือ: "${correctAns}"</b>`;
+            document.getElementById('answer-reveal').style.display = "block";
+
+            let alreadyExists = reviewList.some(item => item.id === currentQuiz.id);
+            if (!alreadyExists) {
+                reviewList.push(currentQuiz);
+                localStorage.setItem('chinese_review_list', JSON.stringify(reviewList));
+            }
+
+            startScreen.style.display = "flex";
+        }
+    </script>
+</body>
+</html>
